@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Fresh Grain Store</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <h2>Welcome Back</h2>
+            <p class="subtitle">Sign in to view dynamic stock & place orders</p>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="email" class="form-control" placeholder="name@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-primary">Sign In</button>
+            </form>
+            <p style="margin-top: 1.5rem; font-size: 0.88rem; color: var(--text-muted); text-align: center;">
+                Don't have an account? <a href="/register.html" style="color: var(--primary); font-weight: 700;">Register Here</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+
+                localStorage.setItem('jwt_token', data.token);
+                localStorage.setItem('user_role', data.role);
+                localStorage.setItem('user_name', data.name);
+
+                if (data.role === 'admin') {
+                    window.location.href = '/admin.html';
+                } else {
+                    window.location.href = '/customer.html';
+                }
+            } catch (err) {
+                alert(err.message);
+            }
+        });
+    </script>
+</body>
+</html>
