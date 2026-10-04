@@ -1,0 +1,13 @@
+# Node Modules
+node_modules/
+
+# Local SQLite Database (Prevents committing sensitive user/order data)
+database.db
+*.db-journal
+
+# Environment Secrets
+.env
+
+# System Log Files
+*.log
+.DS_Store
