@@ -1,0 +1,3 @@
+const sqlite3 = require('sqlite3').verbose();
+// Creates database.db in the project root if it doesn't already exist
+const db = new sqlite3.Database('./database.db'); 
