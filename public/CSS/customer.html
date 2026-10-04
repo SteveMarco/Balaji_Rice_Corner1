@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Portal - Rice Store</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="brand-logo">🌾 FRESH GRAIN <span>STORE</span></a>
+        <div class="nav-links">
+            <span id="welcome-msg" style="color: var(--accent-gold); font-weight:700;"></span>
+            <button onclick="logout()" style="background:transparent; border:1px solid #fff; color:#fff; padding:0.4rem 0.8rem; border-radius:6px; cursor:pointer;">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2 style="font-size: 1.8rem; color: var(--primary); margin-bottom: 0.5rem;">Live Stock & Brand Catalog</h2>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">Local delivery within 4–5 km: Fixed shipping charge ₹50–₹60 applies.</p>
+
+        <div id="catalog" class="catalog-grid"></div>
+
+        <div id="invoice-modal" class="invoice-card" style="display: none;">
+            <h3 style="color: var(--primary); margin-bottom: 1rem;">Dynamic Order Preview & Invoice</h3>
+            <div id="invoice-body"></div>
+            <br>
+            <button onclick="window.print()" class="btn-primary" style="width: auto; padding: 0.75rem 1.5rem;">🖨️ Print / Save PDF Invoice</button>
+        </div>
+    </div>
+
+    <script>
+        const SHOP_WHATSAPP_NUMBER = "919876543210"; // Store owner WhatsApp number
+        const DELIVERY_CHARGE = 55; // Delivery charge within 4-5km
+
+        async function initCustomerPortal() {
+            const token = localStorage.getItem('jwt_token');
+            const userName = localStorage.getItem('user_name');
+
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            document.getElementById('welcome-msg').innerText = `Hello, ${userName}`;
+
+            try {
+                const res = await fetch('/api/brands', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.status === 403 || res.status === 401) {
+                    alert("Account access restricted or pending approval.");
+                    logout();
+                    return;
+                }
+
+                const brands = await res.json();
+                renderCatalog(brands);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function renderCatalog(brands) {
+            const container = document.getElementById('catalog');
+            container.innerHTML = brands.map(b => {
+                const totalCost = b.price + DELIVERY_CHARGE;
+                const msg = encodeURIComponent(
+                    `*NEW RICE ORDER*\n` +
+                    `Brand: ${b.brand_name}\n` +
+                    `Bag Size: ${b.bag_size}\n` +
+                    `Cost: ₹${b.price}\n` +
+                    `Delivery Charge (4-5km): ₹${DELIVERY_CHARGE}\n` +
+                    `*Total Amount: ₹${totalCost}*\n` +
+                    `Payment Choice: Cash / Online UPI`
+                );
+
+                return `
+                    <div class="rice-card">
+                        <img class="rice-card-img" src="${b.image_url || 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80'}" alt="${b.brand_name}">
+                        <div class="rice-card-body">
+                            <span class="rice-badge">${b.bag_size} Bag</span>
+                            <h3 class="rice-title">${b.brand_name}</h3>
+                            <p class="rice-desc">${b.description || 'Premium quality cleaned rice.'}</p>
+                            
+                            <div class="price-row">
+                                <span class="price-tag">₹${b.price}</span>
+                                <span class="delivery-tag">+ ₹${DELIVERY_CHARGE} Delivery</span>
+                            </div>
+                            
+                            <p style="font-size: 0.8rem; margin-bottom: 1rem; color: ${b.stock_bags <= b.low_stock_threshold ? 'var(--danger)' : 'var(--success)'}; font-weight:700;">
+                                Stock: ${b.stock_bags} bags available
+                            </p>
+
+                            <a href="https://wa.me/${SHOP_WHATSAPP_NUMBER}?text=${msg}" target="_blank" class="btn-whatsapp">
+                                Order Direct on WhatsApp
+                            </a>
+                            
+                            <button onclick="generateInvoiceDraft('${b.brand_name}', '${b.bag_size}', ${b.price})" style="margin-top: 0.5rem; background: transparent; border: 1px solid var(--border-color); padding: 0.6rem; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                                Preview Invoice
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function generateInvoiceDraft(brand, size, price) {
+            const modal = document.getElementById('invoice-modal');
+            const body = document.getElementById('invoice-body');
+            modal.style.display = 'block';
+
+            body.innerHTML = `
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Description</th><th>Bag Size</th><th>Base Price</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>${brand}</td><td>${size}</td><td>₹${price}</td></tr>
+                        <tr><td colspan="2"><strong>Standard Delivery Fee (4–5 Km Radius)</strong></td><td>₹${DELIVERY_CHARGE}</td></tr>
+                        <tr><td colspan="2"><strong>Grand Total</strong></td><td><strong>₹${price + DELIVERY_CHARGE}</strong></td></tr>
+                    </tbody>
+                </table>
+                <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted);">
+                    Accepted Payments: Cash on Delivery / UPI Transfer.
+                </p>
+            `;
+            modal.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/login.html';
+        }
+
+        initCustomerPortal();
+    </script>
+</body>
+</html>
