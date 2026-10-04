@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Rice Store</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar" style="background: #0F291E;">
+        <a href="#" class="brand-logo">🌾 STORE ADMIN <span>PANEL</span></a>
+        <div class="nav-links">
+            <button onclick="logout()" style="background:var(--danger); border:none; color:#fff; padding:0.4rem 0.8rem; border-radius:6px; cursor:pointer;">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Stock Alerts -->
+        <h2 style="color: var(--primary); margin-bottom: 1rem;">Inventory & Stock Alerts</h2>
+        <div id="low-stock-alert-box" style="margin-bottom: 2rem;"></div>
+
+        <!-- Account Approvals -->
+        <h2 style="color: var(--primary); margin-bottom: 1rem;">Pending Customer Registrations</h2>
+        <div class="data-table-container">
+            <table class="data-table">
+                <thead>
+                    <tr><th>Customer Name</th><th>Email</th><th>Phone</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="pending-users-list"></tbody>
+            </table>
+        </div>
+
+        <!-- Add New Rice Stock -->
+        <h2 style="color: var(--primary); margin-bottom: 1rem;">Add New Rice Brand / Stock</h2>
+        <div class="auth-card" style="max-width: 100%; margin-bottom: 2.5rem;">
+            <form id="add-rice-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem;">
+                <div class="form-group">
+                    <label>Brand Name</label>
+                    <input type="text" id="b_name" class="form-control" placeholder="e.g. Royal Basmati" required>
+                </div>
+                <div class="form-group">
+                    <label>Bag Size</label>
+                    <input type="text" id="b_size" class="form-control" placeholder="e.g. 25kg" required>
+                </div>
+                <div class="form-group">
+                    <label>Price (₹)</label>
+                    <input type="number" id="b_price" class="form-control" placeholder="1400" required>
+                </div>
+                <div class="form-group">
+                    <label>Stock Count (Bags)</label>
+                    <input type="number" id="b_stock" class="form-control" placeholder="50" required>
+                </div>
+                <div class="form-group">
+                    <label>Low Stock Alert Threshold</label>
+                    <input type="number" id="b_low" class="form-control" value="10" required>
+                </div>
+                <div class="form-group">
+                    <label>Image URL</label>
+                    <input type="text" id="b_img" class="form-control" placeholder="https://...">
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>Description</label>
+                    <input type="text" id="b_desc" class="form-control" placeholder="Short product description...">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <button type="submit" class="btn-primary">Add Brand to Live Catalog</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Change Credentials -->
+        <h2 style="color: var(--primary); margin-bottom: 1rem;">Update Admin Login Credentials</h2>
+        <div class="auth-card" style="max-width: 500px; margin-bottom: 3rem;">
+            <form id="update-admin-credentials">
+                <div class="form-group">
+                    <label>New Admin Email</label>
+                    <input type="email" id="new_email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>New Secure Password</label>
+                    <input type="password" id="new_pass" class="form-control" required>
+                </div>
+                <button type="submit" class="btn-primary" style="background: var(--text-dark);">Update Admin Login</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('jwt_token');
+
+        async function initAdmin() {
+            if (!token || localStorage.getItem('user_role') !== 'admin') {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            // Load analytics & low stock
+            const resA = await fetch('/api/admin/analytics', { headers: { 'Authorization': `Bearer ${token}` } });
+            const dataA = await resA.json();
+            
+            const alertBox = document.getElementById('low-stock-alert-box');
+            if (dataA.lowStockItems.length > 0) {
+                alertBox.innerHTML = dataA.lowStockItems.map(item => 
+                    `<div style="padding: 1rem; background: var(--danger-bg); border-left: 4px solid var(--danger); margin-bottom:0.5rem; border-radius:6px; font-weight:600;">
+                        ⚠️ Low Stock Alert: <strong>${item.brand_name} (${item.bag_size})</strong> has only ${item.stock_bags} bags left!
+                    </div>`
+                ).join('');
+            } else {
+                alertBox.innerHTML = `<div style="padding: 1rem; background: var(--success-bg); color: var(--success); border-radius:6px; font-weight:600;">✅ All stock levels are sufficient.</div>`;
+            }
+
+            // Load pending users
+            const resU = await fetch('/api/admin/pending-users', { headers: { 'Authorization': `Bearer ${token}` } });
+            const pendingUsers = await resU.json();
+            
+            const tbody = document.getElementById('pending-users-list');
+            if (pendingUsers.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No pending user approvals.</td></tr>`;
+            } else {
+                tbody.innerHTML = pendingUsers.map(u => `
+                    <tr>
+                        <td><strong>${u.name}</strong></td>
+                        <td>${u.email}</td>
+                        <td>${u.phone}</td>
+                        <td>
+                            <button onclick="setUserStatus(${u.id}, 'approved')" style="background:var(--success); color:white; border:none; padding:0.4rem 0.8rem; border-radius:4px; cursor:pointer; font-weight:600;">Approve</button>
+                            <button onclick="setUserStatus(${u.id}, 'rejected')" style="background:var(--danger); color:white; border:none; padding:0.4rem 0.8rem; border-radius:4px; cursor:pointer; font-weight:600;">Reject</button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        async function setUserStatus(userId, status) {
+            await fetch('/api/admin/approve-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ userId, status })
+            });
+            initAdmin();
+        }
+
+        document.getElementById('add-rice-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const body = {
+                brand_name: document.getElementById('b_name').value,
+                bag_size: document.getElementById('b_size').value,
+                price: parseFloat(document.getElementById('b_price').value),
+                stock_bags: parseInt(document.getElementById('b_stock').value),
+                low_stock_threshold: parseInt(document.getElementById('b_low').value),
+                image_url: document.getElementById('b_img').value,
+                description: document.getElementById('b_desc').value
+            };
+
+            await fetch('/api/admin/brands', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(body)
+            });
+            alert('Brand added to catalog!');
+            initAdmin();
+        });
+
+        document.getElementById('update-admin-credentials').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('new_email').value;
+            const newPassword = document.getElementById('new_pass').value;
+
+            const res = await fetch('/api/admin/update-credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ email, newPassword })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+        });
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/login.html';
+        }
+
+        initAdmin();
+    </script>
+</body>
+</html>
